@@ -1,3 +1,7 @@
+#|
+	Aleksander Ksiazek, Obliczenia Symboliczne II, 2014
+	Developed and Tested using Emacs with SLIME and SBCL 1.1
+|#
 (defun flatten (list)
   (cond
     ((null list) nil)
@@ -5,84 +9,11 @@
     (T (mapcan #'flatten list))
     ))
 
+(defun not-in (var expr)
+  (not (member var (flatten expr))))
+	
 (defmacro derivative (var expr)
-  `(der (quote ,var) (quote ,expr)))
-
-(defun rewrite (expr)
-  ; reduce redundant operations
-  (cond
-    ((atom expr) expr)
-    ((eq (car expr) '+)
-     (cond
-       ((eq (caddr expr) 0) (cadr expr)) ; +0
-       ((eq (cadr expr) 0) (caddr expr)) ; 0+
-       (T expr)
-       ))
-    ((eq (car expr) '-)
-     (cond
-       ((and (eq (cadr expr) 0) (null (caddr expr))) 0) ; (-0)
-       ((eq (cadr expr) 0) (list '- (caddr expr))) ; 0-
-       ((eq (caddr expr) 0) (cadr expr)) ; -0
-       ;((and (listp (cadr expr)) (eq (caadr expr) '-)) expr) ; -(-x)
-       ; +(-x)
-       (T expr)
-       ))
-    ((eq (car expr) '*)
-     (cond
-       ((or (eq (caddr expr) 0) (eq (cadr expr) 0)) 0) ; 0*
-       ((eq (caddr expr) 1) (cadr expr)) ; 1*
-       ((eq (cadr expr) 1) (caddr expr)) ; *1
-       (T expr)
-       ))
-    (T expr)
-    ))     
-
-; already quoted  
-(defun der (var expr)
-  (cond
-    ((null expr) nil)
-    ((and (atom expr) (eq var expr)) 1)
-    ((not (member var (flatten expr))) 0)
-    (T
-     (cond
-       ((member (car expr) '(+ -)) (rewrite (list (car expr) (der var (cadr expr)) (der var (caddr expr)))))
-       ((eq (car expr) '*)
-	(rewrite (list '+
-			  (rewrite (list '* (der var (cadr expr)) (caddr expr)))
-			  (rewrite (list '* (cadr expr) (der var (caddr expr))))
-			  )))
-       ((eq (car expr) '/)
-	(rewrite (list '/ 
-		 (rewrite (list '- 
-				(rewrite (list '* (der var (cadr expr)) (caddr expr)))
-				(rewrite (list '* (cadr expr) (der var (caddr expr))))
-				))
-		 (rewrite (list '^ (caddr expr) 2)))))
-      
-       ((eq (car expr) '^) 
-	(cond
-	     ; a^f(x)
-	     ((not (member var (flatten (cadr expr))))
-	      (rewrite (list '* 
-			     (rewrite (list '* 
-					    (rewrite (list '^ (cadr expr) (caddr expr)))
-					    `(ln ,(cadr expr))))
-			     (der var (caddr expr)))))
-	     ; f(x) ^ a
-	     ((not (member var (flatten (caddr expr))))
-	      (rewrite (list '* 
-			     (rewrite (list '* (caddr expr)
-					    (rewrite (list '^ (cadr expr) 
-							   (rewrite (list '- (caddr expr) '1))))))
-			     (der var (cadr expr)))))
-	     ; f(x) ^ g(x)
-	     (T (der var (list 'exp (rewrite (list '* (caddr expr) (list 'ln (cadr expr)))))))
-	     ))
-       (T 
-	(if (is-named-function (car expr)) 
-	    (rewrite (list '* (named-function-derivative (car expr) (cadr expr)) (der var (cadr expr))))
-	    (error "unknown function")))
-       ))))
+  `(derive (quote ,var) (quote ,expr)))
 
 (defun is-named-function (name)
   (if (member name '(^ sin cos tg ctg sqrt exp ln log asin acos atg actg)) T nil))
@@ -102,3 +33,81 @@
     ('atg `(/ 1 (+ 1 (^ ,@arg 2))))
     ('actg `(- (/ 1 (+ 1 (^ ,@arg 2)))))
     ))
+  
+(defun rewrite (expr)
+  ; reduce redundant operations
+  (if (atom expr) expr
+	(let ((operator (car expr)) (arg1 (cadr expr)) (arg2 (caddr expr)))
+		(cond
+			((eq operator '+)
+			 (cond
+			   ((eq arg2 0) arg1) ; +0
+			   ((eq arg1 0) arg2) ; 0+
+			   (T expr)
+			   ))
+			((eq operator '-)
+			 (cond
+			   ((and (eq arg1 0) (null arg2)) 0) ; (-0)
+			   ((eq arg1 0) (list '- arg2)) ; 0-
+			   ((eq arg2 0) arg1) ; -0
+			   ;((and (listp arg1) (eq (caadr expr) '-)) expr) ; -(-x)
+			   ; +(-x)
+			   (T expr)
+			   ))
+			((eq operator '*)
+			 (cond
+			   ((or (eq arg2 0) (eq arg1 0)) 0) ; 0*
+			   ((eq arg2 1) arg1) ; 1*
+			   ((eq arg1 1) arg2) ; *1
+			   (T expr)
+			   ))
+			(T expr)
+		))))     
+
+; already quoted  
+(defun derive (var expr)
+  (cond
+    ((null expr) nil)
+    ((and (atom expr) (eq var expr)) 1)
+    ((not (member var (flatten expr))) 0)
+    (T (let ((operator (car expr)) (arg1 (cadr expr)) (arg2 (caddr expr)))
+     (cond
+       ((member operator '(+ -)) (rewrite (list operator (derive var arg1) (derive var arg2))))
+       ((eq operator '*)
+	(rewrite (list '+
+			  (rewrite (list '* (derive var arg1) arg2))
+			  (rewrite (list '* arg1 (derive var arg2)))
+			  )))
+       ((eq operator '/)
+	(rewrite (list '/ 
+		 (rewrite (list '- 
+				(rewrite (list '* (derive var arg1) arg2))
+				(rewrite (list '* arg1 (derive var arg2)))
+				))
+		 (rewrite (list '^ arg2 2)))))
+      
+       ((eq operator '^) 
+	(cond
+	     ; a^f(x)
+	     ((not (member var (flatten arg1)))
+	      (rewrite (list '* 
+			     (rewrite (list '* 
+					    (rewrite (list '^ arg1 arg2))
+					    `(ln ,arg1)))
+			     (derive var arg2))))
+	     ; f(x) ^ a
+	     ((not (member var (flatten arg2)))
+	      (rewrite (list '* 
+			     (rewrite (list '* arg2
+					    (rewrite (list '^ arg1 
+							   (rewrite (list '- arg2 '1))))))
+			     (derive var arg1))))
+	     ; f(x) ^ g(x)
+	     (T (derive var (list 'exp (rewrite (list '* arg2 (list 'ln arg1))))))
+	     ))
+       (T 
+	(if (is-named-function operator) 
+	    (rewrite (list '* (named-function-derivative operator arg1) (derive var arg1)))
+	    (error "unknown function")))
+       )))))
+
