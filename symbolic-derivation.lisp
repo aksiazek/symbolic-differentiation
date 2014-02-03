@@ -12,6 +12,38 @@ Developed and Tested using Emacs with SLIME and SBCL 1.1
 (defun not-in (var expr)
   (not (member var (flatten expr))))
 
+(defun rewrite (expr)
+; reduce redundant operations
+  (if (atom expr) expr
+      (let ((operator (car expr)) (arg1 (cadr expr)) (arg2 (caddr expr)))
+	(cond
+	  ((eq operator '+)
+	   (cond
+	     ((null arg2) (rewrite arg1)) ; (+ arg1)
+	     ((eq arg2 0) arg1) ; +0
+	     ((eq arg1 0) arg2) ; 0+
+	     ((and (numberp arg1) (numberp arg2)) (+ arg1 arg2))
+	     (T expr)
+	     ))
+	  ((eq operator '-)
+	   (cond
+	     ((and (eq arg1 0) (null arg2)) 0) ; (-0)
+	     ((and (null arg2) (listp arg1) (eq (car arg1) '-)) (rewrite (cadr arg1))) ; -(- arg1)
+	     ((eq arg1 0) (list '- arg2)) ; 0 - arg2
+	     ((eq arg2 0) arg1) ; arg1 - 0
+	     (T expr)
+	     ))
+	  ((eq operator '*)
+	   (cond
+	     ((or (eq arg2 0) (eq arg1 0)) 0) ; 0*
+	     ((eq arg2 1) arg1) ; 1*
+	     ((eq arg1 1) arg2) ; *1
+	     (T expr)
+	     ))
+	  (T expr)
+	  ))))     
+
+
 (defmacro derivative (var expr)
   `(derive (quote ,var) (quote ,expr)))
 
@@ -34,37 +66,27 @@ Developed and Tested using Emacs with SLIME and SBCL 1.1
     ((eq name 'actg) `(- (/ 1 (+ 1 (^ ,(rewrite arg) 2)))))
     ))
 
-(defun rewrite (expr)
-; reduce redundant operations
-  (if (atom expr) expr
-      (let ((operator (car expr)) (arg1 (cadr expr)) (arg2 (caddr expr)))
-	(cond
-	  ((eq operator '+)
-	   (cond
-	     ((null arg2) (rewrite arg1)) ; (+ arg1)
-	     ((eq arg2 0) arg1) ; +0
-	     ((eq arg1 0) arg2) ; 0+
-	     (T expr)
-	     ))
-	  ((eq operator '-)
-	   (cond
-	     ((and (eq arg1 0) (null arg2)) 0) ; (-0)
-	     ((and (null arg2) (listp arg1) (eq (car arg1) '-)) (rewrite (cadr arg1))) ; -(- arg1)
-	     ((eq arg1 0) (list '- arg2)) ; 0 - arg2
-	     ((eq arg2 0) arg1) ; arg1 - 0
-	     (T expr)
-	     ))
-	  ((eq operator '*)
-	   (cond
-	     ((or (eq arg2 0) (eq arg1 0)) 0) ; 0*
-	     ((eq arg2 1) arg1) ; 1*
-	     ((eq arg1 1) arg2) ; *1
-	     (T expr)
-	     ))
-	  (T expr)
-	  ))))     
+(defun pow (var arg1 arg2)
+  (cond
+	; a^f(x)
+    ((not-in var arg1)
+     (rewrite (list '* 
+		    (rewrite (list '* 
+				   (rewrite (list '^ arg1 arg2))
+				   `(ln ,arg1)))
+		    (derive var arg2))))
+	; f(x) ^ a
+    ((not-in var arg2)
+     (rewrite (list '* 
+		    (rewrite (list '* arg2
+				   (rewrite (list '^ arg1 
+						  (rewrite (list '- arg2 '1))))))
+		    (derive var arg1))))
+	; f(x) ^ g(x)
+    (T (derive var (list 'exp (rewrite (list '* arg2 (list 'ln arg1))))))
+       ))
 
-; already quoted  
+; processes already quoted expression by derivation rules and named-functions
 (defun derive (var expr)
   (cond
     ((null expr) nil)
@@ -89,24 +111,7 @@ Developed and Tested using Emacs with SLIME and SBCL 1.1
 			   (rewrite (list '^ arg2 2)))))
 	   
 	   ((eq operator '^) 
-	    (cond
-	; a^f(x)
-	      ((not (member var (flatten arg1)))
-	       (rewrite (list '* 
-			      (rewrite (list '* 
-					     (rewrite (list '^ arg1 arg2))
-					     `(ln ,arg1)))
-			      (derive var arg2))))
-	; f(x) ^ a
-	      ((not (member var (flatten arg2)))
-	       (rewrite (list '* 
-			      (rewrite (list '* arg2
-					     (rewrite (list '^ arg1 
-							    (rewrite (list '- arg2 '1))))))
-			      (derive var arg1))))
-	; f(x) ^ g(x)
-	      (T (derive var (list 'exp (rewrite (list '* arg2 (list 'ln arg1))))))
-	      ))
+	    (pow var arg1 arg2))
 	   (T 
 	    (if (is-named-function operator) 
 		(rewrite (list '* (named-function-derivative operator arg1) (derive var arg1)))
