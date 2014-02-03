@@ -1,4 +1,4 @@
-(defmacro identity (&rest expr)
+(defmacro print (&rest expr)
   `(quote ,expr))
 
 (defmacro derivative (var &rest expr)
@@ -8,4 +8,4 @@
   (if (member name '(sin cos tg ctg sqrt exp ln log asin acos atg actg)) T nil))
 
 (defmacro named-function-derivative (name &rest args)
-  (case name ('sin 'cos)))
+  `(case (quote ,name) ('sin '(cos (quote ,args))) ))
