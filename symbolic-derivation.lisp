@@ -1,9 +1,13 @@
-(defmacro print (expr)
-  `(quote ,expr))
+(defun flatten (list)
+  (cond
+    ((null list) nil)
+    ((atom list) (list list))
+    (T (mapcan #'flatten list))
+    ))
 
-(defmacro printa (&rest expr)
-  `(quote ,expr))
-  
+(defmacro derivative (var expr)
+  `(der (quote ,var) (quote ,expr)))
+
 (defun rewrite (expr)
   ; reduce redundant operations
   (cond
@@ -31,14 +35,7 @@
        (T expr)
        ))
     (T expr)
-    ))
-
-(defun flatten (list)
-  (cond
-    ((null list) nil)
-    ((atom list) (list list))
-    (T (mapcan #'flatten list))
-    ))
+    ))     
 
 ; already quoted  
 (defun der (var expr)
@@ -60,33 +57,31 @@
 				(rewrite (list '* (cadr expr) (der var (caddr expr))))
 				))
 		 (rewrite (list '^ (caddr expr) 2)))))
-       ('^ (cond
-	     ((
-	))
-       (otherwise (if (is-named-function (car expr)) (named-function-derivative (car expr) (cdr expr)) 
+      
+       (otherwise 
+	(if (is-named-function (car expr)) 
+	    (rewrite (list '* (named-function-derivative (car expr) (cadr expr)) (der var (cadr expr))))
+	    (error "unknown function")))
        ))))
-
-(defmacro new-cond (&rest cond-pairs)
-  (cond      ;; you need cond to compile new-cond syntax, LOL!
-    ((null cond-pairs) nil)
-    ((atom cond-pairs) (error "new-cond: bad syntax!"))
-    (t `(if ,(first (first cond-pairs))
-           (progn ,@(rest (first cond-pairs)))
-           (new-cond ,@(rest cond-pairs)))))) 
-
-(defmacro derivative (var expression)
-  `(let ((expr ',expression))
-     (case (car expr)
-       ('* (list '+ (list '* (derivative (quote ,var) (cadr expr)) (caddr expr))
-		 (list '* (cadr expr) nil) ))
-       (otherwise nil))))
 
 (defun is-named-function (name)
   (if (member name '(^ sin cos tg ctg sqrt exp ln log asin acos atg actg)) T nil))
 
-(defmacro named-function-derivative (name &rest arg)
-  `(case (quote ,name) 
-     ('sin '(cos ,@arg))
-     ('cos '(- (sin ,@arg)))
-     ('tg '(+ 1 (^ (tg ,@arg) 2)))
-     ))
+(defun named-function-derivative (name &rest arg)
+  (case name
+    ('^ (cond
+	  ((
+	  ))
+    ('sin `(cos ,@arg))
+    ('cos `(- (sin ,@arg)))
+    ('tg `(+ 1 (^ (tg ,@arg) 2)))
+    ('ctg `(- (+ 1 (^ (ctg ,@arg) 2))))
+    ('sqrt `(/ 1 (* 2 (sqrt ,@arg))))
+    ('exp `(exp ,@arg))
+    ('ln `(/ 1 ,@arg))
+    ('log `(/ 1 (* ,@arg (ln 10))))
+    ('asin `(/ 1 (sqrt (- 1 (^ ,@arg 2)))))
+    ('acos `(- (/ 1 (sqrt (- 1 (^ ,@arg 2))))))
+    ('atg `(/ 1 (+ 1 (^ ,@arg 2))))
+    ('actg `(- (/ 1 (+ 1 (^ ,@arg 2)))))
+    ))
