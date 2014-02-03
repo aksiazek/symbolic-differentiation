@@ -44,21 +44,23 @@
     ((and (atom expr) (eq var expr)) 1)
     ((not (member var (flatten expr))) 0)
     (T
-     (case (car expr)
-       ('+ (rewrite (list '+ (der var (cadr expr)) (der var (caddr expr)))))
-       ('- (rewrite (list '- (der var (cadr expr)) (der var (caddr expr)))))
-       ('* (rewrite (list '+
+     (cond
+       ((member (car expr) '(+ -)) (rewrite (list (car expr) (der var (cadr expr)) (der var (caddr expr)))))
+       ((eq (car expr) '*)
+	(rewrite (list '+
 			  (rewrite (list '* (der var (cadr expr)) (caddr expr)))
 			  (rewrite (list '* (cadr expr) (der var (caddr expr))))
 			  )))
-       ('/ (rewrite (list '/ 
+       ((eq (car expr) '/)
+	(rewrite (list '/ 
 		 (rewrite (list '- 
 				(rewrite (list '* (der var (cadr expr)) (caddr expr)))
 				(rewrite (list '* (cadr expr) (der var (caddr expr))))
 				))
 		 (rewrite (list '^ (caddr expr) 2)))))
       
-       ('^ (cond
+       ((eq (car expr) '^) 
+	(cond
 	     ; a^f(x)
 	     ((not (member var (flatten (cadr expr))))
 	      (rewrite (list '* 
@@ -76,7 +78,7 @@
 	     ; f(x) ^ g(x)
 	     (T (der var (list 'exp (rewrite (list '* (caddr expr) (list 'ln (cadr expr)))))))
 	     ))
-       (otherwise 
+       (T 
 	(if (is-named-function (car expr)) 
 	    (rewrite (list '* (named-function-derivative (car expr) (cadr expr)) (der var (cadr expr))))
 	    (error "unknown function")))
