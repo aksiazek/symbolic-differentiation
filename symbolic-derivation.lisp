@@ -1,13 +1,28 @@
 (defmacro print (&rest expr)
   `(quote ,expr))
 
-(defmacro derivative (var &rest expression)
+(defmacro new-cond (&rest cond-pairs)
+  (cond      ;; you need cond to compile new-cond syntax, LOL!
+    ((null cond-pairs) nil)
+    ((atom cond-pairs) (error "new-cond: bad syntax!"))
+    (t `(if ,(first (first cond-pairs))
+           (progn ,@(rest (first cond-pairs)))
+           (new-cond ,@(rest cond-pairs)))))) 
+
+(defmacro der (var &rest expression)
   `(let ((expr ',@expression))
      (case (car expr)
-       ('* (list '+ (list '* (derivative (quote ,var) (cadr expr)) (cddr expr))
-		 (list '* (cadr expr) (derivative (quote ,var) (cddr expr))) ))
+       ('* (list '+ (list '* (der (quote ,var) (cadr expr)))))
+       ('+ 'poop)
+       (otherwise nil)
        )))
 
+(defmacro derivative (var expression)
+  `(let ((expr ',expression))
+     (case (car expr)
+       ('* (list '+ (list '* (derivative (quote ,var) (cadr expr)) (caddr expr))
+		 (list '* (cadr expr) nil) ))
+       (otherwise nil))))
 
 (defun is-named-function (name)
   (if (member name '(sin cos tg ctg sqrt exp ln log asin acos atg actg)) T nil))
