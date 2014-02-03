@@ -58,6 +58,24 @@
 				))
 		 (rewrite (list '^ (caddr expr) 2)))))
       
+       ('^ (cond
+	     ; a^f(x)
+	     ((not (member var (flatten (cadr expr))))
+	      (rewrite (list '* 
+			     (rewrite (list '* 
+					    (rewrite (list '^ (cadr expr) (caddr expr)))
+					    `(ln ,(cadr expr))))
+			     (der var (caddr expr)))))
+	     ; f(x) ^ a
+	     ((not (member var (flatten (caddr expr))))
+	      (rewrite (list '* 
+			     (rewrite (list '* (caddr expr)
+					    (rewrite (list '^ (cadr expr) 
+							   (rewrite (list '- (caddr expr) '1))))))
+			     (der var (cadr expr)))))
+	     ; f(x) ^ g(x)
+	     (T (der var (list 'exp (rewrite (list '* (caddr expr) (list 'ln (cadr expr)))))))
+	     ))
        (otherwise 
 	(if (is-named-function (car expr)) 
 	    (rewrite (list '* (named-function-derivative (car expr) (cadr expr)) (der var (cadr expr))))
@@ -69,9 +87,6 @@
 
 (defun named-function-derivative (name &rest arg)
   (case name
-    ('^ (cond
-	  ((
-	  ))
     ('sin `(cos ,@arg))
     ('cos `(- (sin ,@arg)))
     ('tg `(+ 1 (^ (tg ,@arg) 2)))
