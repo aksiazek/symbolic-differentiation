@@ -19,7 +19,7 @@ Developed and Tested using Emacs with SLIME and SBCL 1.1
 	(cond
 	  ((eq operator '+)
 	   (cond
-	     ((null arg2) (rewrite arg1)) ; (+ arg1)
+	     ((null arg2) (rewrite arg1)) ; +(- arg1)
 	     ((eq arg2 0) arg1) ; +0
 	     ((eq arg1 0) arg2) ; 0+
 	     ((and (numberp arg1) (numberp arg2)) (+ arg1 arg2))
@@ -29,8 +29,9 @@ Developed and Tested using Emacs with SLIME and SBCL 1.1
 	   (cond
 	     ((and (eq arg1 0) (null arg2)) 0) ; (-0)
 	     ((and (null arg2) (listp arg1) (eq (car arg1) '-)) (rewrite (cadr arg1))) ; -(- arg1)
-	     ((eq arg1 0) (list '- arg2)) ; 0 - arg2
+	     ((eq arg1 0) (if (eq arg2 0) 0 (list '- arg2))) ; 0 - arg2
 	     ((eq arg2 0) arg1) ; arg1 - 0
+	     ((and (numberp arg1) (numberp arg2)) (- arg1 arg2))
 	     (T expr)
 	     ))
 	  ((eq operator '*)
@@ -38,6 +39,21 @@ Developed and Tested using Emacs with SLIME and SBCL 1.1
 	     ((or (eq arg2 0) (eq arg1 0)) 0) ; 0*
 	     ((eq arg2 1) arg1) ; 1*
 	     ((eq arg1 1) arg2) ; *1
+	     ((and (numberp arg1) (numberp arg2)) (* arg1 arg2))
+	     (T expr)
+	     ))
+	  ((eq operator '/) 
+	   (cond
+	     ((eq arg2 0) (error "divide by zero"))
+	     ((eq arg1 0) 0)
+	     ((and (numberp arg1) (numberp arg2)) (/ arg1 arg2))
+	     (T expr)
+	     ))
+	  ((eq operator '^) 
+	   (cond
+	     ((eq arg2 0) 1) ; f(x)^0
+	     ((eq arg2 1) arg1) ; f(x)^1
+	     ((and (numberp arg1) (numberp arg2)) (if (eq arg1 0) 0 (exp (* arg2 (log arg1)))))
 	     (T expr)
 	     ))
 	  (T expr)
@@ -92,7 +108,7 @@ Developed and Tested using Emacs with SLIME and SBCL 1.1
     ((null expr) nil)
     ((and (atom expr) (eq var expr)) 1)
     ((not (member var (flatten expr))) 0)
-    (T (let ((operator (car expr)) (arg1 (cadr expr)) (arg2 (caddr expr)))
+    (T (let ((operator (car expr)) (arg1 (rewrite (cadr expr))) (arg2 (rewrite (caddr expr))))
 	 (cond
 	   ((member operator '(+ -)) 
 	    (if (null arg2) (rewrite (list operator (derive var arg1)))
