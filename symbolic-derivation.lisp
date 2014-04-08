@@ -1,7 +1,14 @@
 #|
-Aleksander Ksiazek, Obliczenia Symboliczne II, 2014
-Developed and Tested using Emacs with SLIME and SBCL 1.1
+Copyright Aleksander Ksiazek 
+Made for the course Obliczenia Symboliczne II at AGH in 2014
+Developed and tested using Emacs with SLIME and SBCL 1.1
 |#
+
+;; to compile into a full executable use (sb-ext:save-lisp-and-die "symbolic" :executable t :toplevel 'main)
+
+(defun main ()
+  (sb-impl::toplevel-repl nil))
+
 (defun flatten (list)
   (cond
     ((null list) nil)
