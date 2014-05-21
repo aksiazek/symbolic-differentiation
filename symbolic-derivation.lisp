@@ -4,10 +4,11 @@ Made for the course Obliczenia Symboliczne II at AGH in 2014
 Developed and tested using Emacs with SLIME and SBCL 1.1
 |#
 
-;; to compile into a full executable use (sb-ext:save-lisp-and-die "symbolic" :executable t :toplevel 'main)
+;; to compile into a standalone executable with sbcl
 
-(defun main ()
-  (sb-impl::toplevel-repl nil))
+;; uncomment the following: (defun main () (sb-impl::toplevel-repl nil))
+
+;; and use (sb-ext:save-lisp-and-die "symbolic" :executable t :toplevel 'main)
 
 (defun flatten (list)
   (cond
